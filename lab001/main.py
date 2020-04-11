@@ -42,4 +42,6 @@ train_sample_folder = './notMNIST_large'
 
 train_sample = load_images_from_folder(train_sample_folder)
 test_sample = load_images_from_folder(test_sample_folder)
-plot_samples(test_sample, 10, 'hello')
+
+plot_samples(test_sample, 10, 'Test sample')
+plot_samples(train_sample, 10, 'Train sample')
