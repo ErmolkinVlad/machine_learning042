@@ -6,11 +6,13 @@ import pdb
 import numpy as np
 from scipy import ndimage
 from six.moves import cPickle as pickle
+import hashlib
 
 
 ### Helpful sources:
 # http://mlwak.blogspot.com/2016/06/udacity-assignment-1-not-mnist.html
 # https://github.com/hankcs/udacity-deep-learning/blob/master/1_notmnist.py
+# https://github.com/rndbrtrnd/udacity-deep-learning/blob/master/1_notmnist.ipynb
 
 
 # 1: load data and show some images
@@ -46,8 +48,8 @@ def plot_samples(image_paths, sample_size, name):
             subplot.set_axis_off()
     plt.show()
 
-test_sample_folder = './notMNIST_small'
-train_sample_folder = './notMNIST_large'
+test_sample_folder = './data/notMNIST_small'
+train_sample_folder = './data/notMNIST_large'
 
 train_sample = load_image_paths_from_folder(train_sample_folder)
 test_sample = load_image_paths_from_folder(test_sample_folder)
@@ -240,3 +242,83 @@ _, _, test_dataset, test_labels = merge_datasets(test_datasets, test_size)
 print('Training:', train_dataset.shape, train_labels.shape)
 print('Validation:', valid_dataset.shape, valid_labels.shape)
 print('Testing:', test_dataset.shape, test_labels.shape)
+
+
+# 4: check if data from train sample doesn't cross other samples
+
+# Finally, let's save the data for later reuse:
+pickle_file = './data/notMNIST.pickle'
+
+try:
+    f = open(pickle_file, 'wb')
+    save = {
+        'train_dataset': train_dataset,
+        'train_labels': train_labels,
+        'valid_dataset': valid_dataset,
+        'valid_labels': valid_labels,
+        'test_dataset': test_dataset,
+        'test_labels': test_labels,
+    }
+    pickle.dump(save, f, pickle.HIGHEST_PROTOCOL)
+    f.close()
+except Exception as e:
+    print('Unable to save data to', pickle_file, ':', e)
+    raise
+
+statinfo = os.stat(pickle_file)
+print('Compressed pickle size:', statinfo.st_size)
+
+
+def extract_overlap_hash_where(dataset_1, dataset_2):
+    dataset_hash_1 = np.array([hashlib.sha256(img).hexdigest() for img in dataset_1])
+    dataset_hash_2 = np.array([hashlib.sha256(img).hexdigest() for img in dataset_2])
+    overlap = {}
+    for i, hash1 in enumerate(dataset_hash_1):
+        duplicates = np.where(dataset_hash_2 == hash1)
+        if len(duplicates[0]):
+            overlap[i] = duplicates[0]
+    return overlap
+
+
+overlap_test_train = extract_overlap_hash_where(test_dataset, train_dataset)
+print('Number of overlaps:', len(overlap_test_train.keys()))
+
+
+def sanitize(dataset_1, dataset_2, labels_1):
+    dataset_hash_1 = np.array([hashlib.sha256(img).hexdigest() for img in dataset_1])
+    dataset_hash_2 = np.array([hashlib.sha256(img).hexdigest() for img in dataset_2])
+    overlap = []  # list of indexes
+    for i, hash1 in enumerate(dataset_hash_1):
+        duplicates = np.where(dataset_hash_2 == hash1)
+        if len(duplicates[0]):
+            overlap.append(i)
+    return np.delete(dataset_1, overlap, 0), np.delete(labels_1, overlap, None)
+
+test_dataset_sanit, test_labels_sanit = sanitize(test_dataset, train_dataset, test_labels)
+print('Overlapping images removed from test_dataset: ', len(test_dataset) - len(test_dataset_sanit))
+valid_dataset_sanit, valid_labels_sanit = sanitize(valid_dataset, train_dataset, valid_labels)
+print('Overlapping images removed from valid_dataset: ', len(valid_dataset) - len(valid_dataset_sanit))
+print('Training:', train_dataset.shape, train_labels.shape)
+print('Validation:', valid_labels_sanit.shape, valid_labels_sanit.shape)
+print('Testing:', test_dataset_sanit.shape, test_labels_sanit.shape)
+
+pickle_file_sanit = './data/notMNIST_sanit.pickle'
+
+try:
+    f = open(pickle_file_sanit, 'wb')
+    save = {
+        'train_dataset': train_dataset,
+        'train_labels': train_labels,
+        'valid_dataset': valid_dataset_sanit,
+        'valid_labels': valid_labels_sanit,
+        'test_dataset': test_dataset_sanit,
+        'test_labels': test_labels_sanit,
+    }
+    pickle.dump(save, f, pickle.HIGHEST_PROTOCOL)
+    f.close()
+except Exception as e:
+    print('Unable to save data to', pickle_file, ':', e)
+    raise
+
+statinfo = os.stat(pickle_file_sanit)
+print('Compressed pickle size:', statinfo.st_size)
