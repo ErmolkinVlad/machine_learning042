@@ -7,6 +7,7 @@ import numpy as np
 from scipy import ndimage
 from six.moves import cPickle as pickle
 import hashlib
+from sklearn.linear_model import LogisticRegression
 
 
 ### Helpful sources:
@@ -17,48 +18,30 @@ import hashlib
 
 # 1: load data and show some images
 
-# Returns data in format { 'folders': {}, 'image_paths': [] }
-def load_image_paths_from_folder(folder):
-    print("Getting image paths from {}".format(folder))
-    result = { 'folders': {}, 'image_paths': [] }
-    for name in os.listdir(folder):
-        is_folder = os.path.isdir(os.path.join(folder, name))
-        if is_folder:
-            subfolder = os.path.join(folder, name)
-            result['folders'][subfolder] = load_image_paths_from_folder(subfolder)
-        else:
-            image_path = os.path.join(folder, name)
-            result['image_paths'].append(image_path)
-    return result
-
-def plot_samples(image_paths, sample_size, name):
+def plot_samples(folders, sample_size, name):
     figure = plt.figure()
     figure.suptitle(name)
-    folders = image_paths['folders']
-    for folder_name, folder in folders.items():
-        image_path_samples = random.sample(folder['image_paths'], sample_size)
-        for image_path in image_path_samples:
+    for folder in folders:
+        image_names = os.listdir(folder)
+        image_names_samples = random.sample(image_names, sample_size)
+        for image_name in image_names_samples:
             subplot = figure.add_subplot(
                 sample_size,
                 len(folders),
-                list(folders).index(folder_name) * sample_size + image_path_samples.index(image_path) + 1
+                list(folders).index(folder) * sample_size + image_names_samples.index(image_name) + 1
             )
-            image = cv2.imread(os.path.join(image_path))
+            image = cv2.imread(os.path.join(folder, image_name))
             subplot.imshow(image)
             subplot.set_axis_off()
     plt.show()
 
-test_sample_folder = './data/notMNIST_small'
 train_sample_folder = './data/notMNIST_large'
+test_sample_folder = './data/notMNIST_small'
+train_sample_folders = np.sort([os.path.join(train_sample_folder, folder) for folder in os.listdir(train_sample_folder) if not folder.endswith('.pickle')])
+test_sample_folders = np.sort([os.path.join(test_sample_folder, folder) for folder in os.listdir(test_sample_folder) if not folder.endswith('.pickle')])
 
-train_sample = load_image_paths_from_folder(train_sample_folder)
-test_sample = load_image_paths_from_folder(test_sample_folder)
-
-plot_samples(test_sample, 10, 'Test sample')
-plot_samples(train_sample, 10, 'Train sample')
-
-
-# # 2: check if samples are balanced
+plot_samples(train_sample_folders, 10, 'Test sample')
+plot_samples(test_sample_folders, 10, 'Train sample')
 
 image_size = 28 # Pixel width and height.
 pixel_depth = 255.0 # Number of levels per pixel.
@@ -72,8 +55,7 @@ def load_letter(folder, min_num_images):
     """image_files is an array of all the filenames"""
     image_files = os.listdir(folder)
     """dataset is an array of length being the total number of images, and each image is 28x28"""
-    dataset = np.ndarray(shape=(len(image_files), image_size, image_size),
-                         dtype=np.float32)
+    dataset = np.ndarray(shape=(len(image_files), image_size, image_size), dtype=np.float32)
     print(folder)
     num_images = 0
     for image in image_files:
@@ -83,8 +65,7 @@ def load_letter(folder, min_num_images):
             image_data = (ndimage.imread(image_file).astype(float) - pixel_depth / 2) / pixel_depth
             if image_data.shape != (image_size, image_size):
                 raise Exception('Unexpected image shape: %s' % str(image_data.shape))
-            """after the normalization, stick the normalized image
-               into the dataset array at the nth position"""
+            """after the normalization, stick the normalized image into the dataset array at the nth position"""
             dataset[num_images, :, :] = image_data
             num_images = num_images + 1
         except IOError as e:
@@ -102,6 +83,8 @@ def load_letter(folder, min_num_images):
 
 # Pickle is used for serializing and de-serializing Python object structures,
 # also called marshalling or flattening.
+
+# returns array of pickles names
 def pickle_dataset(data_folders, min_num_images_per_class):
     dataset_names = []
     for folder in data_folders:
@@ -122,10 +105,12 @@ def pickle_dataset(data_folders, min_num_images_per_class):
     return dataset_names
 
 
-train_datasets = pickle_dataset(train_sample['folders'], 45000)
-test_datasets = pickle_dataset(test_sample['folders'], 1800)
+train_datasets = pickle_dataset(train_sample_folders, 45000)
+test_datasets = pickle_dataset(test_sample_folders, 1800)
 
+# 2: check if samples are balanced
 
+# returns array of images count in each folder
 def num_of_images(datasets):
     num = []
 
@@ -149,6 +134,7 @@ def balance_check(sizes):
 def mean(numbers):
     return float(sum(numbers)) / max(len(numbers), 1)
 
+# generates array of indexes of letters
 def generate_fake_label(sizes):
     labels = np.ndarray(sum(sizes), dtype=np.int32)
     start = 0
@@ -172,7 +158,7 @@ def plot_balance(train_labels, test_labels):
     ax[1].hist(test_labels, bins=bins)
     ax[1].set_xticks((bins[:-1] + bins[1:]) / 2, [chr(k) for k in range(ord("A"), ord("J") + 1)])
     ax[1].set_title("Test data")
-    plt.show()
+    # plt.show()
 
 
 test_labels = generate_fake_label(num_of_images(test_datasets))
@@ -302,6 +288,17 @@ print('Training:', train_dataset.shape, train_labels.shape)
 print('Validation:', valid_labels_sanit.shape, valid_labels_sanit.shape)
 print('Testing:', test_dataset_sanit.shape, test_labels_sanit.shape)
 
+def randomize(dataset, labels):
+    #     permutes the order of the dataset and corresponding labels
+    permutation = np.random.permutation(labels.shape[0])
+    shuffled_dataset = dataset[permutation,:,:]
+    shuffled_labels = labels[permutation]
+    return shuffled_dataset, shuffled_labels
+
+train_dataset, train_labels = randomize(train_dataset, train_labels)
+test_dataset, test_labels = randomize(test_dataset, test_labels)
+valid_dataset, valid_labels = randomize(valid_dataset, valid_labels)
+
 pickle_file_sanit = './data/notMNIST_sanit.pickle'
 
 try:
@@ -322,3 +319,39 @@ except Exception as e:
 
 statinfo = os.stat(pickle_file_sanit)
 print('Compressed pickle size:', statinfo.st_size)
+
+#5: Create logistic regression classifier
+# Постройте график зависимости точности классификатора от размера обучающей выборки (50, 100, 1000, 50000)
+
+def disp_sample_dataset(dataset, labels, title=None):
+    fig = plt.figure()
+    if title: fig.suptitle(title, fontsize=16, fontweight='bold')
+    items = random.sample(range(len(labels)), 8)
+    for i, item in enumerate(items):
+        plt.subplot(2, 4, i + 1)
+        plt.axis('off')
+        plt.title(chr(ord('A') + labels[item]))
+        plt.imshow(dataset[item])
+    plt.show()
+
+
+def train_and_predict(sample_size):
+    regr = LogisticRegression()
+
+    # convert 3d array to 2d
+    X_train = train_dataset[:sample_size].reshape(sample_size, 28 * 28)
+    y_train = train_labels[:sample_size]
+    regr.fit(X_train, y_train)
+
+    X_test = test_dataset.reshape(test_dataset.shape[0], 28 * 28)
+    y_test = test_labels
+
+    pred_labels = regr.predict(X_test)
+    
+    print('Accuracy:', regr.score(X_test, y_test), 'when sample_size=', sample_size)
+    disp_sample_dataset(test_dataset, pred_labels, 'sample_size=' + str(sample_size))
+
+
+
+for sample_size in [50, 100, 1000, 5000, len(train_dataset)]:
+    train_and_predict(sample_size)
