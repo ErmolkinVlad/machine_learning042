@@ -4,10 +4,10 @@ from matplotlib import pyplot as plt
 import random
 import pdb
 import numpy as np
-from scipy import ndimage
 from six.moves import cPickle as pickle
 import hashlib
 from sklearn.linear_model import LogisticRegression
+import imageio
 
 
 ### Helpful sources:
@@ -30,13 +30,13 @@ def plot_samples(folders, sample_size, name):
                 len(folders),
                 list(folders).index(folder) * sample_size + image_names_samples.index(image_name) + 1
             )
-            image = cv2.imread(os.path.join(folder, image_name))
+            image = imageio.imread(os.path.join(folder, image_name))
             subplot.imshow(image)
             subplot.set_axis_off()
     plt.show()
 
-train_sample_folder = './data/notMNIST_large'
-test_sample_folder = './data/notMNIST_small'
+train_sample_folder = '../data/notMNIST_large'
+test_sample_folder = '../data/notMNIST_small'
 train_sample_folders = np.sort([os.path.join(train_sample_folder, folder) for folder in os.listdir(train_sample_folder) if not folder.endswith('.pickle')])
 test_sample_folders = np.sort([os.path.join(test_sample_folder, folder) for folder in os.listdir(test_sample_folder) if not folder.endswith('.pickle')])
 
@@ -62,13 +62,14 @@ def load_letter(folder, min_num_images):
         image_file = os.path.join(folder, image)
         try:
             """this is the normalization step - the formula is [value-(255/2)]/255"""
-            image_data = (ndimage.imread(image_file).astype(float) - pixel_depth / 2) / pixel_depth
+            image_file = imageio.imread(image_file)
+            image_data = (image_file.astype(float) - pixel_depth / 2) / pixel_depth
             if image_data.shape != (image_size, image_size):
                 raise Exception('Unexpected image shape: %s' % str(image_data.shape))
             """after the normalization, stick the normalized image into the dataset array at the nth position"""
             dataset[num_images, :, :] = image_data
             num_images = num_images + 1
-        except IOError as e:
+        except Exception as e:
             print('Could not read:', image_file, ':', e, '- it\'s ok, skipping.')
 
     dataset = dataset[0:num_images, :, :]
@@ -233,7 +234,7 @@ print('Testing:', test_dataset.shape, test_labels.shape)
 # 4: check if data from train sample doesn't cross other samples
 
 # Finally, let's save the data for later reuse:
-pickle_file = './data/notMNIST.pickle'
+pickle_file = '../data/notMNIST.pickle'
 
 try:
     f = open(pickle_file, 'wb')
@@ -299,7 +300,7 @@ train_dataset, train_labels = randomize(train_dataset, train_labels)
 test_dataset, test_labels = randomize(test_dataset, test_labels)
 valid_dataset, valid_labels = randomize(valid_dataset, valid_labels)
 
-pickle_file_sanit = './data/notMNIST_sanit.pickle'
+pickle_file_sanit = '../data/notMNIST_sanit.pickle'
 
 try:
     f = open(pickle_file_sanit, 'wb')
