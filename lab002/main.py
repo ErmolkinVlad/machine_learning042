@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 # TensorFlow и tf.keras
 import tensorflow as tf
 from tensorflow import keras
+from keras import regularizers
 
 # Вспомогательные библиотеки
 import numpy as np
@@ -50,63 +51,264 @@ for i in range(25):
 # Flatten преобразует формат изображения из двумерного массива (28 на 28 пикселей)
 # в одномерный (размерностью 28 * 28 = 784 пикселя)
 # Dense - это полносвязные нейронные слои.
-model = keras.Sequential([
+baseline_model = keras.Sequential([
     keras.layers.Flatten(input_shape=(28, 28)),
-    keras.layers.Dense(242, activation='sigmoid'),
-    keras.layers.Dense(242, activation='relu'),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dense(100, activation='relu'),
     keras.layers.Dense(10, activation='softmax')
 ])
 
-model.compile(optimizer='sgd',
+baseline_model.compile(optimizer='sgd',
               loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
 
-model.fit(train_images, train_labels, epochs=3)
+baseline_model.summary()
 
-test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2)
+baseline_history = baseline_model.fit(train_images,
+                                      train_labels,
+                                      epochs=10,
+                                      validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = baseline_model.evaluate(test_images,  test_labels, verbose=2)
 
 print('\nТочность на проверочных данных:', test_acc)
 
-predictions = model.predict(test_images)
+# 3: Используйте регуляризацию и метод сброса нейронов (dropout) для борьбы с переобучением.
+# Как улучшилось качество классификации?
 
-np.argmax(predictions[0])
+#3.1 Регуляризация
+# https://www.tensorflow.org/tutorials/keras/overfit_and_underfit#add_weight_regularization
 
-def plot_image(i, predictions_array, true_label, img):
-    predictions_array, true_label, img = predictions_array[i], true_label[i], img[i]
-    plt.grid(False)
-    plt.xticks([])
-    plt.yticks([])
+l2_regularization = 1e-4
 
-    plt.imshow(img, cmap=plt.cm.binary)
+l2_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid', kernel_regularizer=regularizers.l2(l2_regularization)),
+    keras.layers.Dense(100, activation='relu', kernel_regularizer=regularizers.l2(l2_regularization)),
+    keras.layers.Dense(10, activation='softmax')
+])
 
-    predicted_label = np.argmax(predictions_array)
-    if predicted_label == true_label:
-        color = 'blue'
-    else:
-        color = 'red'
+l2_model.compile(optimizer='sgd',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
 
-    plt.xlabel("{} {:2.0f}% ({})".format(image_name(predicted_label),
-                                100*np.max(predictions_array),
-                                image_name(true_label)),
-                                color=color)
+l2_model_history = l2_model.fit(train_images,
+                                train_labels,
+                                epochs=10,
+                                validation_data=(valid_images, valid_labels))
 
-def plot_value_array(i, predictions_array, true_label):
-    predictions_array, true_label = predictions_array[i], true_label[i]
-    # plt.grid(False)
-    plt.grid(axis = 'y')
-    plt.xticks(np.arange(10), [image_name(x) for x in np.arange(10)])
-    # plt.yticks([])
-    thisplot = plt.bar(range(10), predictions_array, color="#777777")
-    plt.ylim([0, 1])
-    predicted_label = np.argmax(predictions_array)
+test_loss, test_acc, _ = l2_model.evaluate(test_images,  test_labels, verbose=2)
 
-    thisplot[predicted_label].set_color('red')
-    thisplot[true_label].set_color('blue')
+print('\nТочность на проверочных данных:', test_acc)
 
-i = 0
-plt.figure(figsize=(6,3))
-plt.subplot(1,2,1)
-plot_image(i, predictions, test_labels, test_images)
-plt.subplot(1,2,2)
-plot_value_array(i, predictions,  test_labels)
-plt.show()
+def plot_history(histories, key='binary_crossentropy'):
+    plt.figure(figsize=(16,10))
+
+    for name, history in histories:
+        val = plt.plot(history.epoch, history.history['val_' + key],
+                        '--', label=name.title()+' Val')
+        plt.plot(history.epoch, history.history[key], color=val[0].get_color(),
+                label=name.title()+' Train')
+
+    plt.xlabel('Epochs')
+    plt.ylabel(key.replace('_',' ').title())
+    plt.legend()
+
+    plt.xlim([0,max(history.epoch)])
+    
+    plt.show()
+
+# Регуляризация показала худшие результаты, чем исходная модель (0.9094037 против 0.9144495).
+
+# 3.2 метод сброса нейронов
+
+dropout_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(100, activation='relu'),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+dropout_model.compile(optimizer='sgd',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+dropout_model_history = dropout_model.fit(train_images,
+                                train_labels,
+                                epochs=10,
+                                validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = dropout_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
+
+# Точность на проверочных данных: (0.890367 против 0.9144495 у исходной модели).
+
+# 3.3 регуляризация + дропаут
+
+l2_dropout_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid', kernel_regularizer=regularizers.l2(l2_regularization)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(100, activation='relu', kernel_regularizer=regularizers.l2(l2_regularization)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+l2_dropout_model.compile(optimizer='sgd',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+l2_dropout_model_history = l2_dropout_model.fit(train_images,
+                                train_labels,
+                                epochs=10,
+                                validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = l2_dropout_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
+
+
+
+plot_history(
+    [
+        ('baseline', baseline_history),
+        ('l2', l2_model_history),
+        ('dropout', dropout_model_history),
+        ('l2 + dropout', l2_dropout_model_history)
+    ],
+    key='sparse_categorical_crossentropy')
+
+# В итоге, дропаут только ухудшил результат модели,
+# регуляризация её не ухудшила, но и лучших результатов не показала.
+# Можно сделать вывод, что так как эти методы
+# применяются для борьбы с переобучением модели,
+# то если они ничего не улучшают,
+# значит модель изначально не была переобучена.
+
+# Задание 4.
+# Воспользуйтесь динамически изменяемой скоростью обучения (learning rate).
+# Наилучшая точность, достигнутая с помощью данной модели составляет 97.1%.
+# Какую точность демонстрирует Ваша реализованная модель?
+
+# Adagrad
+
+# Adagrad выполняет большие обновления для более разреженных параметров
+# и меньшие обновления для менее разреженных параметров.
+# Он имеет хорошую производительность с разреженными данными
+# и обучением крупномасштабной нейронной сети.
+# Тем не менее, его монотонная скорость обучения
+# обычно оказывается слишком агрессивной
+# и перестает учиться слишком рано
+# при обучении глубоких нейронных сетей.
+
+adagrad_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dense(100, activation='relu'),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+optimizer = keras.optimizers.Adagrad(lr=0.01, epsilon=1e-08, decay=0.0)
+adagrad_model.compile(optimizer=optimizer,
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+adagrad_model.summary()
+
+adagrad_history = adagrad_model.fit(train_images,
+                                      train_labels,
+                                      epochs=10,
+                                      validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = adagrad_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
+
+# Adadelta
+
+# Adadelta - это расширение Adagrad,
+# которое стремится уменьшить свою агрессивную,
+# монотонно уменьшающуюся скорость обучения.
+
+adadelta_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dense(100, activation='relu'),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+optimizer = keras.optimizers.Adadelta(lr=1.0, rho=0.95, epsilon=1e-08, decay=0.0)
+adadelta_model.compile(optimizer=optimizer,
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+adadelta_model.summary()
+
+adadelta_history = adadelta_model.fit(train_images,
+                                      train_labels,
+                                      epochs=10,
+                                      validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = adadelta_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
+
+
+# RMSprop
+
+# RMSprop очень просто настраивает метод Адаграда,
+# пытаясь уменьшить его агрессивное, монотонно убывающее обучение.
+
+rms_prop_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dense(100, activation='relu'),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+optimizer = keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
+rms_prop_model.compile(optimizer=optimizer,
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+rms_prop_model.summary()
+
+rms_prop_history = rms_prop_model.fit(train_images,
+                                      train_labels,
+                                      epochs=10,
+                                      validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = rms_prop_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
+
+# Adam
+
+# Adam - это обновление оптимизатора RMSProp,
+# похожее на RMSprop с динамикой.
+
+adam_model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(100, activation='sigmoid'),
+    keras.layers.Dense(100, activation='relu'),
+    keras.layers.Dense(10, activation='softmax')
+])
+
+optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+adam_model.compile(optimizer=optimizer,
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy', 'sparse_categorical_crossentropy'])
+
+adam_model.summary()
+
+adam_history = adam_model.fit(train_images,
+                                      train_labels,
+                                      epochs=10,
+                                      validation_data=(valid_images, valid_labels))
+
+test_loss, test_acc, _ = adam_model.evaluate(test_images,  test_labels, verbose=2)
+
+print('\nТочность на проверочных данных:', test_acc)
