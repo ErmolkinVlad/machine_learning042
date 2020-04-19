@@ -102,8 +102,8 @@ test_loss, test_acc = maxpool_model.evaluate(test_images,  test_labels, verbose=
 
 print('\nТочность на проверочных данных:', test_acc)
 
-Задание 3.
-Реализуйте классическую архитектуру сверточных сетей LeNet-5 (http://yann.lecun.com/exdb/lenet/).
+# Задание 3.
+# Реализуйте классическую архитектуру сверточных сетей LeNet-5 (http://yann.lecun.com/exdb/lenet/).
 
 
 # padding: https://medium.com/@congyuzhou/padding-32266fa95816
@@ -111,12 +111,12 @@ print('\nТочность на проверочных данных:', test_acc)
 
 # stride - шаг
 lenet5_model = keras.Sequential([
-    keras.layers.conv2d(filters=6, kernel_size=[5,5], padding='same', activation='relu'),
-    keras.layers.max_pooling2d(pool_size=[2,2], strides=2),
-    keras.layers.conv2d(filters=16, kernel_size=[5,5], padding='valid', activation='relu'),
-    keras.layers.max_pooling2d(pool_size=[2,2], strides=2),
+    keras.layers.Conv2D(filters=6, kernel_size=[5,5], padding='same', activation='relu'),
+    keras.layers.MaxPooling2D(pool_size=[2,2], strides=2),
+    keras.layers.Conv2D(filters=16, kernel_size=[5,5], padding='valid', activation='relu'),
+    keras.layers.MaxPooling2D(pool_size=[2,2], strides=2),
     keras.layers.Flatten(),
-    keras.ayers.Dense(units=120, activation='relu'),
+    keras.layers.Dense(units=120, activation='relu'),
     keras.layers.Dense(units=84, activation='relu'),
     keras.layers.Dense(units=10, activation = 'softmax')
 ])
