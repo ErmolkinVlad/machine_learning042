@@ -55,3 +55,7 @@ def plot_samples(images, sample_size, name):
 plot_samples(train_images, 5, 'train')
 plot_samples(valid_images, 5, 'valid')
 plot_samples(test_images, 5, 'test')
+
+train_images_3d = np.array([np.repeat(img, 3, 2) for img in tf.image.resize(train_images, (32, 32))])
+valid_images_3d = np.array([np.repeat(img, 3, 2) for img in tf.image.resize(valid_images, (32, 32))])
+test_images_3d = np.array([np.repeat(img, 3, 2) for img in tf.image.resize(test_images, (32, 32))])
