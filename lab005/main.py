@@ -210,10 +210,7 @@ plot_history([('basic model', basic_model_history)], key='loss')
 
 # 4
 
-image_size = 224
-input_shape = (224, 224, 3)
-
-pre_trained_model = keras.applications.VGG19(input_shape=input_shape, include_top=False, weights="imagenet")
+pre_trained_model = keras.applications.VGG19(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), include_top=False, weights="imagenet")
 
 for i, layer in enumerate(pre_trained_model.layers):
     if i <= 42:
