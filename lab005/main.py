@@ -98,21 +98,36 @@ def plot_samples(iterator, sample_size, name):
 l2_regularization = 1e-4
 
 basic_model = keras.Sequential([
-    keras.layers.Conv2D(32, 3, activation='relu', padding='same', input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3)),
-    keras.layers.MaxPooling2D(pool_size=(2, 2)),
+    keras.layers.Conv2D(32, 3, activation='relu', input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3)),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
 
-    keras.layers.Conv2D(64, 3, activation='relu', padding='same'),
-    keras.layers.MaxPooling2D(pool_size=(2, 2)),
+    keras.layers.Conv2D(64, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
 
-    keras.layers.Conv2D(128, 3, activation='relu', padding='same'),
-    keras.layers.MaxPooling2D(pool_size=(2, 2)),
+    keras.layers.Conv2D(128, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
+
+    keras.layers.Conv2D(256, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
 
     keras.layers.Flatten(),
-    keras.layers.Dense(units=512, activation='relu', kernel_regularizer=regularizers.l2(l2_regularization)),
-    keras.layers.Dropout(0.25),
 
-    keras.layers.Dense(units=10, activation = 'softmax')
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dropout(0.1),
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dense(1, activation='sigmoid')
 ])
+
+
+basic_model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+
+basic_model.summary()
 
 basic_model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
@@ -141,3 +156,81 @@ def plot_history(histories, key='binary_crossentropy'):
     plt.show()
 
 plot_history([('basic model, basic_model_history')], key='loss')
+
+
+# Задание 3.
+# Примените дополнение данных (data augmentation). Как это повлияло на качество классификатора?
+
+aug_data_generator = ImageDataGenerator(rescale=1./255,
+      rotation_range=40,
+      width_shift_range=0.2,
+      height_shift_range=0.2,
+      shear_range=0.2,
+      zoom_range=0.2,
+      horizontal_flip=True,
+      fill_mode='nearest')
+
+
+aug_train_iterator = aug_data_generator.flow_from_directory(train_folder, class_mode='binary', target_size=(IMAGE_SIZE, IMAGE_SIZE), shuffle=True)
+aug_valid_iterator = aug_data_generator.flow_from_directory(valid_folder, class_mode='binary', target_size=(IMAGE_SIZE, IMAGE_SIZE), shuffle=True)
+aug_test_iterator = aug_data_generator.flow_from_directory(test_folder, class_mode='binary', target_size=(IMAGE_SIZE, IMAGE_SIZE), shuffle=True)
+
+
+aug_model = keras.Sequential([
+    keras.layers.Conv2D(32, 3, activation='relu', input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3)),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
+    
+    keras.layers.Conv2D(64, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
+    
+    keras.layers.Conv2D(128, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
+    
+    keras.layers.Conv2D(256, 3, activation='relu'),
+    keras.layers.MaxPooling2D((2, 2)),
+    keras.layers.Dropout(0.1),
+    
+    keras.layers.Flatten(),
+    
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dropout(0.1),
+    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Dense(1, activation='sigmoid')
+])
+
+aug_model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+aug_model.summary()
+aug_model_history = aug_model.fit_generator(aug_train_iterator, steps_per_epoch=150, epochs=10, validation_data=aug_valid_iterator, validation_steps=50, verbose=1)
+
+plot_history([('basic model', basic_model_history)], key='loss')
+
+
+# 4
+
+image_size = 224
+input_shape = (224, 224, 3)
+
+pre_trained_model = keras.applications.VGG19(input_shape=input_shape, include_top=False, weights="imagenet")
+
+for i, layer in enumerate(pre_trained_model.layers):
+    if i <= 42:
+        layer.trainable = False
+    else:
+        layer.trainable = True
+
+last_layer = pre_trained_model.get_layer('block5_pool')
+last_output = last_layer.output
+
+model = keras.layers.GlobalAveragePooling2D()(last_output)
+model = keras.layers.Dense(512, activation='relu')(model)
+model = keras.layers.Dropout(0.5)(model)
+model = keras.layers.Dense(1, activation='sigmoid')(model)
+
+vgg_model = keras.models.Model(pre_trained_model.input, model)
+
+vgg_model.compile(loss='binary_crossentropy', optimizer='sgd', metrics=['accuracy'])
+
+vgg_model.summary()
