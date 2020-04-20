@@ -24,6 +24,8 @@ l2_regularization = 1e-4
 
 # Extract data
 
+# helpful links:
+# 1) https://machinelearningmastery.com/how-to-load-large-datasets-from-directories-for-deep-learning-with-keras/
 def extract_dataset():
     with open('../data/notMNIST_sanit.pickle', 'rb') as f:
         data = pickle.load(f)
@@ -85,14 +87,14 @@ print('\nТочность на проверочных данных:', test_acc)
 
 # Extracting data
 
-dataset_paths = [('test', "../data/housenames/test.tar.gz"),
-                 ('train', "../data/housenames/train.tar.gz")]
-for name, path in dataset_paths:
-    if not os.path.exists('../data/housenames/' + name):
-        print(name)
-        tf = tarfile.open(path)
-        files = tf.extractall('../data/housenames')
-        tf.close()
+# dataset_paths = [('test', "../data/housenames/test.tar.gz"),
+#                  ('train', "../data/housenames/train.tar.gz")]
+# for name, path in dataset_paths:
+#     if not os.path.exists('../data/housenames/' + name):
+#         print(name)
+#         tf = tarfile.open(path)
+#         files = tf.extractall('../data/housenames')
+#         tf.close()
 
 houses_train_dataset= scipy.io.loadmat(os.path.join('../data/housenames/', 'train_32x32.mat'))
 houses_test_dataset = scipy.io.loadmat(os.path.join('../data/housenames/', 'test_32x32.mat'))
