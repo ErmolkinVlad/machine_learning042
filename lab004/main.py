@@ -24,8 +24,6 @@ l2_regularization = 1e-4
 
 # Extract data
 
-# helpful links:
-# 1) https://machinelearningmastery.com/how-to-load-large-datasets-from-directories-for-deep-learning-with-keras/
 def extract_dataset():
     with open('../data/notMNIST_sanit.pickle', 'rb') as f:
         data = pickle.load(f)
